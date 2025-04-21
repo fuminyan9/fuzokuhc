@@ -1,0 +1,317 @@
+<!-- =========================================
+  ＋Oneおかず & 歯磨き チャレンジ  結果サイト v5
+========================================= -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>＋Oneおかず & 歯磨き チャレンジ | 結果速報</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{--primary:#2c9ab7;--accent:#f4b400;--bg:#f8fbfc;--text:#333}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-serif;line-height:1.6;min-height:100vh;display:flex;flex-direction:column}
+    header{background:var(--primary);color:#fff;text-align:center;padding:2rem 1rem;box-shadow:0 4px 12px rgba(0,0,0,.2)}
+    header h1{font-size:clamp(1.6rem,4vw,2.4rem)}
+    nav.tabs{display:flex;gap:.5rem;justify-content:center;margin:.8rem 0;flex-wrap:wrap}
+    .tab{padding:.35rem .9rem;border-radius:18px;cursor:pointer;font-size:.85rem;background:#e1eff3;color:var(--primary);user-select:none;transition:.2s}
+    .tab.active{background:var(--primary);color:#fff;font-weight:600;transform:translateY(-2px)}
+    .container{max-width:1100px;margin:auto;padding:0 1rem;flex:1}
+    #canvasWrap{margin-bottom:2rem}
+    canvas{width:100%!important;height:320px!important}
+    table{width:100%;border-collapse:collapse;margin-bottom:3rem}
+    th,td{padding:.6rem;border-bottom:1px solid #ddd;text-align:center;font-size:.9rem}
+    th{background:var(--primary);color:#fff;position:sticky;top:0}
+    tr:nth-child(even){background:#f0f8fa}
+    #adminBtn{position:fixed;bottom:20px;right:20px;width:50px;height:50px;border-radius:50%;background:var(--accent);color:#fff;font-size:1.7rem;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 8px rgba(0,0,0,.25);z-index:300}
+    #adminBtn:hover{transform:rotate(20deg)}
+    dialog{border:none;border-radius:12px;padding:0;max-width:620px;width:94vw;box-shadow:0 6px 22px rgba(0,0,0,.3)}
+    dialog::backdrop{background:rgba(0,0,0,.45)}
+    #login,#adminPanel{padding:1.5rem}
+    #login h3{margin-bottom:1rem}
+    #login input{width:100%;padding:.65rem;border:1px solid #ccc;border-radius:6px;margin-bottom:1rem}
+    #login button{width:100%;padding:.7rem;border:none;border-radius:6px;background:var(--primary);color:#fff;font-weight:600;cursor:pointer}
+    #adminPanel header{background:var(--primary);color:#fff;padding:1rem;border-top-left-radius:12px;border-top-right-radius:12px;display:flex;justify-content:space-between;align-items:center}
+    #adminPanel .close{cursor:pointer;font-size:1.3rem;font-weight:700}
+    #adminPanel table input{width:60px;padding:.3rem;text-align:right;border:1px solid #ccc;border-radius:4px}
+    #saveBtn{margin:1rem auto;display:block;padding:.6rem 1.6rem;border:none;border-radius:6px;background:var(--accent);color:#fff;font-weight:600;cursor:pointer}
+    @media(prefers-color-scheme:dark){
+      body{background:#222;color:#eee}
+      header{background:#19829f}
+      tr:nth-child(even){background:rgba(255,255,255,.05)}
+      .tab{background:#324f56;color:#9fd7e4}
+      .tab.active{background:#9fd7e4;color:#003f52}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>＋Oneおかず & 歯磨き チャレンジ</h1>
+    <p>月〜金の取組をリアルタイムにチェック！</p>
+  </header>
+
+  <!-- タブ群 -->
+  <nav id="gradeTabs" class="tabs container"></nav>
+  <nav id="classTabs" class="tabs container"></nav>
+  <nav id="metricTabs" class="tabs container"></nav>
+
+  <main class="container">
+    <div id="canvasWrap"><canvas id="dailyChart"></canvas></div>
+    <section>
+      <table>
+        <thead><tr><th>順位</th><th>クラス</th><th>＋Oneおかず</th><th>歯磨き</th><th>合計</th></tr></thead>
+        <tbody id="rankBody"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <!-- ⚙ 管理ボタン -->
+  <div id="adminBtn" title="管理画面"><span>⚙</span></div>
+  <dialog id="adminDialog">
+    <!-- ログイン画面 -->
+    <div id="login">
+      <h3>保健委員ログイン</h3>
+      <input id="pwd" type="password" placeholder="パスワード">
+      <button id="loginBtn">ログイン</button>
+    </div>
+    <!-- 管理パネル -->
+    <div id="adminPanel" style="display:none">
+      <header>
+        <span>集計入力</span>
+        <span class="close" id="closeAdmin">✕</span>
+      </header>
+      <div style="padding:1rem;overflow:auto;max-height:65vh">
+        <table>
+          <thead id="adminHead"></thead>
+          <tbody id="adminBody"></tbody>
+        </table>
+        <button id="saveBtn">保存</button>
+      </div>
+    </div>
+  </dialog>
+
+<script>
+/***** 0. 定義 *****/
+const classes = ["1-1","1-2","1-3","2-1","2-2","2-3","3-1","3-2"];
+const grades = {
+  "全校": classes,
+  "1年": classes.slice(0,3),
+  "2年": classes.slice(3,6),
+  "3年": classes.slice(6)
+};
+const days = ["月","火","水","木","金"];
+const metrics = ["両方","＋Oneおかず","歯磨き"];
+const palette = ["#4e79a7","#f28e2b","#e15759","#76b7b2","#59a14f","#edc949","#af7aa1","#ff9da7"];
+const STORE_KEY = 'healthChallenge';
+
+// データ読み込み
+let data = JSON.parse(localStorage.getItem(STORE_KEY)) || (() => {
+  const d = {};
+  classes.forEach(c=>{
+    d[c] = days.map(()=>({
+      plus: Math.floor(Math.random()*30+15),
+      brush: Math.floor(Math.random()*30+15)
+    }));
+  });
+  return d;
+})();
+
+/***** 1. 状態変数 *****/
+let currentGrade = '全校';
+let currentClass = '学年合計';
+let currentMetric = '両方';
+
+/***** 2. タブ生成 *****/
+const gradeNav = document.getElementById('gradeTabs');
+const classNav = document.getElementById('classTabs');
+const metricNav = document.getElementById('metricTabs');
+
+function makeTabs(){
+  gradeNav.innerHTML = '';
+  classNav.innerHTML = '';
+  metricNav.innerHTML = '';
+  Object.keys(grades).forEach((g,i)=>{
+    const t = document.createElement('div');
+    t.className = 'tab' + (!i?' active':'');
+    t.dataset.grade = g;
+    t.textContent = g;
+    gradeNav.appendChild(t);
+  });
+  buildClassTabs();
+  metrics.forEach((m,i)=>{
+    const t = document.createElement('div');
+    t.className = 'tab' + (!i?' active':'');
+    t.dataset.metric = m;
+    t.textContent = m;
+    metricNav.appendChild(t);
+  });
+}
+function buildClassTabs(){
+  classNav.innerHTML = '';
+  const list = ['学年合計', ...grades[currentGrade]];
+  list.forEach((c,i)=>{
+    const t = document.createElement('div');
+    t.className = 'tab' + (!i?' active':'');
+    t.dataset.cls = c;
+    t.textContent = c;
+    classNav.appendChild(t);
+  });
+}
+makeTabs();
+
+/***** 3. イベント *****/
+gradeNav.addEventListener('click', e=>{
+  if(!e.target.dataset.grade) return;
+  [...gradeNav.children].forEach(t=>t.classList.remove('active'));
+  e.target.classList.add('active');
+  currentGrade = e.target.dataset.grade;
+  currentClass = '学年合計';
+  buildClassTabs();
+  updateView();
+});
+classNav.addEventListener('click', e=>{
+  if(!e.target.dataset.cls) return;
+  [...classNav.children].forEach(t=>t.classList.remove('active'));
+  e.target.classList.add('active');
+  currentClass = e.target.dataset.cls;
+  updateView();
+});
+metricNav.addEventListener('click', e=>{
+  if(!e.target.dataset.metric) return;
+  [...metricNav.children].forEach(t=>t.classList.remove('active'));
+  e.target.classList.add('active');
+  currentMetric = e.target.dataset.metric;
+  updateView();
+});
+
+/***** 4. Chart & 表 *****/
+const ctx = document.getElementById('dailyChart').getContext('2d');
+let chart;
+function buildChart(datasets, stack){
+  if(chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: days, datasets },
+    options: {
+      plugins: { legend: { display: datasets.length > 1 } },
+      responsive: true,
+      scales: {
+        x: { stacked: stack },
+        y: { stacked: stack, beginAtZero: true }
+      }
+    }
+  });
+}
+
+const rankBody = document.getElementById('rankBody');
+
+function updateView(){
+  const targetClasses = currentClass === '学年合計'
+    ? grades[currentGrade]
+    : [currentClass];
+
+  // datasets 準備
+  const datasets = targetClasses.map((cl,i)=>{
+    const vals = days.map((_,d)=>{
+      const row = data[cl][d];
+      if(currentMetric==='歯磨き') return row.brush;
+      if(currentMetric==='＋Oneおかず') return row.plus;
+      return row.plus + row.brush;
+    });
+    return {
+      label: cl,
+      data: vals,
+      backgroundColor: palette[i % palette.length]
+    };
+  });
+  buildChart(datasets, targetClasses.length > 1);
+
+  // ランキング
+  const list = targetClasses.map(cl=>{
+    let plus=0, brush=0;
+    data[cl].forEach(r=>{ plus += r.plus; brush += r.brush; });
+    return { class: cl, plus, brush };
+  }).sort((a,b)=>{
+    const ta = currentMetric==='歯磨き'? a.brush : currentMetric==='＋Oneおかず'? a.plus : a.plus+a.brush;
+    const tb = currentMetric==='歯磨き'? b.brush : currentMetric==='＋Oneおかず'? b.plus : b.plus+b.brush;
+    return tb - ta;
+  });
+  rankBody.innerHTML = list.map((d,i)=>
+    `<tr>
+      <td>${i+1}</td>
+      <td>${d.class}</td>
+      <td>${d.plus}</td>
+      <td>${d.brush}</td>
+      <td>${d.plus + d.brush}</td>
+    </tr>`
+  ).join('');
+}
+updateView();
+
+/***** 5. 管理画面 *****/
+const adminBtn = document.getElementById('adminBtn');
+const adminDialog = document.getElementById('adminDialog');
+const loginPane = document.getElementById('login');
+const adminPane = document.getElementById('adminPanel');
+const loginBtn = document.getElementById('loginBtn');
+const closeAdmin = document.getElementById('closeAdmin');
+const saveBtn = document.getElementById('saveBtn');
+
+adminBtn.addEventListener('click', ()=>{ adminDialog.showModal(); });
+loginBtn.addEventListener('click', ()=>{
+  if(document.getElementById('pwd').value === 'hc2025'){
+    loginPane.style.display = 'none';
+    adminPane.style.display = 'block';
+    buildAdminTable();
+  } else {
+    alert('パスワードが違います');
+  }
+});
+closeAdmin.addEventListener('click', ()=>{
+  adminPane.style.display = 'none';
+  loginPane.style.display = 'block';
+  adminDialog.close();
+});
+
+function buildAdminTable(){
+  const head = document.getElementById('adminHead');
+  const body = document.getElementById('adminBody');
+  head.innerHTML = '';
+  const trHead = document.createElement('tr');
+  trHead.innerHTML = '<th>クラス</th>' +
+    days.map(d=>`<th>${d}<br>＋One</th><th>${d}<br>歯磨き</th>`).join('');
+  head.appendChild(trHead);
+
+  body.innerHTML = '';
+  classes.forEach(cl=>{
+    const tr = document.createElement('tr');
+    let html = `<td>${cl}</td>`;
+    data[cl].forEach((row, idx)=>{
+      html += `<td><input type="number" data-cl="${cl}" data-day="${idx}" data-metric="plus" value="${row.plus}" min="0"></td>`;
+      html += `<td><input type="number" data-cl="${cl}" data-day="${idx}" data-metric="brush" value="${row.brush}" min="0"></td>`;
+    });
+    tr.innerHTML = html;
+    body.appendChild(tr);
+  });
+}
+
+saveBtn.addEventListener('click', ()=>{
+  document.querySelectorAll('#adminBody input').forEach(input=>{
+    const cl = input.dataset.cl;
+    const day = parseInt(input.dataset.day, 10);
+    const m = input.dataset.metric;
+    const v = parseInt(input.value, 10) || 0;
+    if(m === 'plus')  data[cl][day].plus  = v;
+    if(m === 'brush') data[cl][day].brush = v;
+  });
+  localStorage.setItem(STORE_KEY, JSON.stringify(data));
+  updateView();
+  adminPane.style.display = 'none';
+  loginPane.style.display = 'block';
+  adminDialog.close();
+});
+</script>
+</body>
+</html>
